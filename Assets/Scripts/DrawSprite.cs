@@ -9,7 +9,6 @@ using UnityEngine;
 
 public class DrawSprite : MonoBehaviour
 {
-    [SerializeField] private Mesh mesh;
     [SerializeField] private Material zombieMaterial;
 
     [SerializeField] private Material kunaiMaterail;

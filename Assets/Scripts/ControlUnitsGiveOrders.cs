@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
+
 public class ControlUnitsGiveOrders : MonoBehaviour
 {
     private BlobAssetStore blobAssetStore;
@@ -18,7 +19,7 @@ public class ControlUnitsGiveOrders : MonoBehaviour
         var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, blobAssetStore);
         var convertedTargetPrefab = GameObjectConversionUtility.ConvertGameObjectHierarchy(unitPrefabs, settings);
         EntityManager entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 5000; i++)
         {
             var entity = entityManager.Instantiate(convertedTargetPrefab);
             entityManager.SetComponentData(entity, new Translation() { Value = GetRandomPosition(new float3(100f, 50f, 0f)) });
@@ -34,4 +35,5 @@ public class ControlUnitsGiveOrders : MonoBehaviour
     {
         if (blobAssetStore != null) { blobAssetStore.Dispose(); }
     }
+
 }
