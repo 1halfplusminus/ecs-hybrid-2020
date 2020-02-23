@@ -19,10 +19,10 @@ public class ControlUnitsGiveOrders : MonoBehaviour
         var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, blobAssetStore);
         var convertedTargetPrefab = GameObjectConversionUtility.ConvertGameObjectHierarchy(unitPrefabs, settings);
         EntityManager entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        for (int i = 0; i < 5000; i++)
+        for (int i = 0; i < 4; i++)
         {
             var entity = entityManager.Instantiate(convertedTargetPrefab);
-            entityManager.SetComponentData(entity, new Translation() { Value = GetRandomPosition(new float3(100f, 50f, 0f)) });
+            entityManager.SetComponentData(entity, new Translation() { Value = GetRandomPosition(new float3(8f, 8f, 0f)) });
 
         }
     }
