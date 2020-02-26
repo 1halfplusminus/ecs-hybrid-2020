@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
@@ -26,47 +27,5 @@ class SelectionArea : MonoBehaviour
     private void OnDestroy()
     {
         if (blobAssetStore != null) { blobAssetStore.Dispose(); }
-    }
-}
-
-
-[UpdateAfter(typeof(UnitControlSystem))]
-public class SelectionAreaSystem : ComponentSystem
-{
-    public Entity prefab;
-
-    protected override void OnCreate()
-    {
-        RequireSingletonForUpdate<SelectionAreaData>();
-        base.OnCreate();
-    }
-    protected override void OnUpdate()
-    {
-        SelectionAreaData selectionAreaData = GetSingleton<SelectionAreaData>();
-        if (selectionAreaData.isSelecting)
-        {
-            CreateIfDontExist();
-            Entities.WithAll<SelectionAreaTag>().ForEach((Entity entity, ref Translation translation, ref NonUniformScale scale) =>
-           {
-               translation.Value = selectionAreaData.startPosition;
-               scale.Value = selectionAreaData.selectionAreaSize;
-           });
-        }
-        else
-        {
-            Entities.WithAll<SelectionAreaTag>().ForEach((Entity entity) =>
-            {
-                EntityManager.DestroyEntity(entity);
-            });
-        }
-    }
-
-    protected void CreateIfDontExist()
-    {
-        EntityQuery entityQuery = GetEntityQuery(typeof(SelectionAreaTag));
-        if (entityQuery.CalculateEntityCount() == 0)
-        {
-            EntityManager.Instantiate(prefab);
-        }
     }
 }

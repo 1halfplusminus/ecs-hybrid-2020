@@ -23,7 +23,6 @@ public class ControlUnitsGiveOrders : MonoBehaviour
         {
             var entity = entityManager.Instantiate(convertedTargetPrefab);
             entityManager.SetComponentData(entity, new Translation() { Value = GetRandomPosition(new float3(8f, 8f, 0f)) });
-
         }
     }
     float3 GetRandomPosition(float3 size)
