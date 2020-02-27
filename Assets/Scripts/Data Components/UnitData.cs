@@ -5,7 +5,7 @@ using Unity.Mathematics;
 
 [Serializable]
 [GenerateAuthoringComponent]
-public struct UnitData : IComponentData
-{
-
+public struct UnitData : IComponentData {
+    public enum AnimationType { Idle, Walking }
+    public AnimationType animation;
 }

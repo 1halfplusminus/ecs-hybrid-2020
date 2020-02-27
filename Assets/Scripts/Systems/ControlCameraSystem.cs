@@ -7,9 +7,7 @@ using Unity.Transforms;
 using UnityEngine;
 using static Unity.Mathematics.math;
 
-
-public class ControlCameraSystem : JobComponentSystem
-{
+public class ControlCameraSystem : JobComponentSystem {
     float zoomAmount = 1f;
     float maxToClamp = 10f;
     float rotSpeed = 1f;
@@ -17,8 +15,7 @@ public class ControlCameraSystem : JobComponentSystem
     float sensitivity = 0.5f;
     [BurstCompile]
 
-    struct ControlCameraSystemJob : IJobForEach<CameraData, Translation>
-    {
+    struct ControlCameraSystemJob : IJobForEach<CameraData, Translation> {
         public float axis;
         public float zoomAmount;
         public float maxToClamp;
@@ -28,24 +25,21 @@ public class ControlCameraSystem : JobComponentSystem
         public float axisX;
         public float axisY;
 
-        public void Execute(ref CameraData cameraData, ref Translation translation)
-        {
+        public void Execute (ref CameraData cameraData, ref Translation translation) {
 
-            zoomAmount = math.clamp(zoomAmount, -maxToClamp, maxToClamp);
-            var translate = math.min(math.abs(axis), maxToClamp - math.abs(zoomAmount));
-            var size = (translate * rotSpeed) * math.sign(axis);
+            zoomAmount = math.clamp (zoomAmount, -maxToClamp, maxToClamp);
+            var translate = math.min (math.abs (axis), maxToClamp - math.abs (zoomAmount));
+            var size = (translate * rotSpeed) * math.sign (axis);
             cameraData.size += size;
             translation.Value.x += (axisX * -1) * sensitivity;
             translation.Value.y += (axisY * -1) * sensitivity;
         }
     }
 
-    protected override JobHandle OnUpdate(JobHandle inputDependencies)
-    {
-        var axis = GetAxis();
-        var job = new ControlCameraSystemJob()
-        {
-            axis = Input.GetAxis("Mouse ScrollWheel"),
+    protected override JobHandle OnUpdate (JobHandle inputDependencies) {
+        var axis = GetAxis ();
+        var job = new ControlCameraSystemJob () {
+            axis = Input.GetAxis ("Mouse ScrollWheel"),
             maxToClamp = maxToClamp,
             zoomAmount = zoomAmount,
             rotSpeed = rotSpeed,
@@ -54,14 +48,14 @@ public class ControlCameraSystem : JobComponentSystem
             axisY = axis.Item2
         };
 
-        return job.Schedule(this, inputDependencies);
+        var handle = job.Schedule (this, inputDependencies);
+        handle.Complete ();
+        return handle;
     }
 
-    (float, float) GetAxis()
-    {
-        if (Input.GetMouseButton(2))
-        {
-            return (Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
+    (float, float) GetAxis () {
+        if (Input.GetMouseButton (2)) {
+            return (Input.GetAxis ("Mouse X"), Input.GetAxis ("Mouse Y"));
         }
         return (0, 0);
     }
