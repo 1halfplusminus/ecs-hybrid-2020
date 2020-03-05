@@ -5,34 +5,28 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
-
-public class ControlUnitsGiveOrders : MonoBehaviour
-{
+public class ControlUnitsGiveOrders : MonoBehaviour {
     private BlobAssetStore blobAssetStore;
 
     [SerializeField] GameObject unitPrefabs;
     // Start is called before the first frame update
-    void Start()
-    {
-        blobAssetStore = new BlobAssetStore();
+    void Start () {
+        blobAssetStore = new BlobAssetStore ();
         // Create entity prefab from the game object hierarchy once
-        var settings = GameObjectConversionSettings.FromWorld(World.DefaultGameObjectInjectionWorld, blobAssetStore);
-        var convertedTargetPrefab = GameObjectConversionUtility.ConvertGameObjectHierarchy(unitPrefabs, settings);
+        var settings = GameObjectConversionSettings.FromWorld (World.DefaultGameObjectInjectionWorld, blobAssetStore);
+        var convertedTargetPrefab = GameObjectConversionUtility.ConvertGameObjectHierarchy (unitPrefabs, settings);
         EntityManager entityManager = World.DefaultGameObjectInjectionWorld.EntityManager;
-        for (int i = 0; i < 4; i++)
-        {
-            var entity = entityManager.Instantiate(convertedTargetPrefab);
-            entityManager.SetComponentData(entity, new Translation() { Value = GetRandomPosition(new float3(8f, 8f, 0f)) });
+        for (int i = 0; i < 20; i++) {
+            var entity = entityManager.Instantiate (convertedTargetPrefab);
+            entityManager.SetComponentData (entity, new Translation () { Value = GetRandomPosition (new float3 (8f, 8f, 0f)) });
         }
     }
-    float3 GetRandomPosition(float3 size)
-    {
-        return new float3(UnityEngine.Random.Range(-size.x, +size.x), UnityEngine.Random.Range(-size.y, +size.y), UnityEngine.Random.Range(-size.z, +size.z));
+    float3 GetRandomPosition (float3 size) {
+        return new float3 (UnityEngine.Random.Range (-size.x, +size.x), UnityEngine.Random.Range (-size.y, +size.y), UnityEngine.Random.Range (-size.z, +size.z));
     }
 
-    private void OnDestroy()
-    {
-        if (blobAssetStore != null) { blobAssetStore.Dispose(); }
+    private void OnDestroy () {
+        if (blobAssetStore != null) { blobAssetStore.Dispose (); }
     }
 
 }

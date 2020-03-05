@@ -8,12 +8,10 @@ using Unity.Physics.Systems;
 using Unity.Transforms;
 using UnityEngine;
 
-public struct SelectedTag : IComponentData
-{
+public struct SelectedTag : IComponentData {
 
 }
-public class UnitControlSystem : JobComponentSystem
-{
+public class UnitControlSystem : JobComponentSystem {
 
     private float3 startPosition;
     private float3 endPosition;
@@ -32,31 +30,27 @@ public class UnitControlSystem : JobComponentSystem
     private BuildPhysicsWorld physicsWorldSystem;
 
     [BurstCompile]
-    [RequireComponentTag(typeof(SelectableTag))]
-    struct UnitControlSystemJob : IJobForEachWithEntity<Translation>
-    {
+    [RequireComponentTag (typeof (SelectableTag))]
+    struct UnitControlSystemJob : IJobForEachWithEntity<Translation> {
         public float3 lowerLeftPosition;
 
         public float3 upperRightPosition;
 
         public EntityCommandBuffer.Concurrent entityCommandBuffer;
         public bool selection;
-        public void Execute(Entity entity, int index, ref Translation translation)
-        {
+        public void Execute (Entity entity, int index, ref Translation translation) {
             float3 entityPosition = translation.Value;
             if (entityPosition.x >= lowerLeftPosition.x &&
                 entityPosition.y >= lowerLeftPosition.y &&
                 entityPosition.x <= upperRightPosition.x &&
-                entityPosition.y <= upperRightPosition.y)
-            {
-                entityCommandBuffer.AddComponent(index, entity, new SelectedTag());
+                entityPosition.y <= upperRightPosition.y) {
+                entityCommandBuffer.AddComponent (index, entity, new SelectedTag ());
             }
         }
     }
 
     [BurstCompile]
-    struct SelectionJob : IJobFor
-    {
+    struct SelectionJob : IJobFor {
         public float3 lowerLeftPosition;
 
         public float3 upperRightPosition;
@@ -71,175 +65,182 @@ public class UnitControlSystem : JobComponentSystem
 
         [Unity.Collections.ReadOnly] public CollisionWorld collisionWorld;
         [ReadOnly] public PhysicsWorld physicsWorld;
-        unsafe public void Execute(int index)
-        {
-            var center = math.lerp(upperRightPosition, lowerLeftPosition, 0.5f);
-            var size = new float3(startPosition.x - endPosition.x,
+        unsafe public void Execute (int index) {
+            var center = math.lerp (upperRightPosition, lowerLeftPosition, 0.5f);
+            var size = new float3 (startPosition.x - endPosition.x,
                 startPosition.y - endPosition.y,
                 1);
-            var filter = new CollisionFilter()
-            {
+            var filter = new CollisionFilter () {
                 BelongsTo = ~0u,
                 CollidesWith = ~0u, // all 1s, so all layers, collide with everything
                 GroupIndex = 0
             };
 
-            BoxGeometry boxGeometry = new BoxGeometry()
-            {
-                Center = new float3(0, 0, 0) - new float3(startPosition.x - endPosition.x,
+            BoxGeometry boxGeometry = new BoxGeometry () {
+                Center = new float3 (0, 0, 0) - new float3 (startPosition.x - endPosition.x,
                 startPosition.y - endPosition.y,
                 1) / 2,
-                Size = (size * math.sign(size)) + new float3(1, 1, 1),
+                Size = (size * math.sign (size)) + new float3 (1, 1, 1),
                 Orientation = quaternion.identity,
                 BevelRadius = 0,
             };
-            BlobAssetReference<Unity.Physics.Collider> boxColliser = Unity.Physics.BoxCollider.Create(boxGeometry, filter);
-            ColliderCastInput input = new ColliderCastInput()
-            {
-                Collider = (Unity.Physics.Collider*)boxColliser.GetUnsafePtr(),
+            BlobAssetReference<Unity.Physics.Collider> boxColliser = Unity.Physics.BoxCollider.Create (boxGeometry, filter);
+            ColliderCastInput input = new ColliderCastInput () {
+                Collider = (Unity.Physics.Collider * ) boxColliser.GetUnsafePtr (),
                 Orientation = quaternion.identity,
                 Start = startPosition,
                 End = startPosition
             };
-            NativeList<ColliderCastHit> allHits = new NativeList<ColliderCastHit>(500, Allocator.Temp);
-            bool haveHit = collisionWorld.CastCollider(input, ref allHits);
-            if (haveHit)
-            {
-                for (int i = 0; i < allHits.Length; i++)
-                {
+            NativeList<ColliderCastHit> allHits = new NativeList<ColliderCastHit> (500, Allocator.Temp);
+            bool haveHit = collisionWorld.CastCollider (input, ref allHits);
+            if (haveHit) {
+                for (int i = 0; i < allHits.Length; i++) {
                     var hit = allHits[i];
                     Entity e = physicsWorld.Bodies[hit.RigidBodyIndex].Entity;
-                    entityCommandBuffer.AddComponent(index, e, new SelectedTag());
+                    entityCommandBuffer.AddComponent (index, e, new SelectedTag ());
                 }
             }
         }
     }
 
     [BurstCompile]
-    struct DeselectJob : IJobForEachWithEntity<HasSelectionCircle>
-    {
+    struct DeselectJob : IJobForEachWithEntity<HasSelectionCircle> {
         public EntityCommandBuffer.Concurrent entityCommandBuffer;
-        public void Execute(Entity entity, int index, [Unity.Collections.ReadOnly] ref HasSelectionCircle sec)
-        {
-            entityCommandBuffer.RemoveComponent<SelectedTag>(index, entity);
-            entityCommandBuffer.RemoveComponent<HasSelectionCircle>(index, entity);
-            entityCommandBuffer.DestroyEntity(index, sec.circle);
+        public void Execute (Entity entity, int index, [Unity.Collections.ReadOnly] ref HasSelectionCircle sec) {
+            entityCommandBuffer.RemoveComponent<SelectedTag> (index, entity);
+            entityCommandBuffer.RemoveComponent<HasSelectionCircle> (index, entity);
+            entityCommandBuffer.DestroyEntity (index, sec.circle);
         }
     }
 
     [BurstCompile]
-    [RequireComponentTag(typeof(SelectedTag))]
-    struct OrderSelectedUnitJob : IJobForEachWithEntity<MoveTo>
-    {
+    [RequireComponentTag (typeof (SelectedTag))]
+    struct OrderSelectedUnitJob : IJobForEachWithEntity<MoveTo> {
         public float3 mousePosition;
-        public void Execute(Entity entity, int index, ref MoveTo moveTo)
-        {
-            moveTo.position = mousePosition;
+
+        public int positionCount;
+
+        public void Execute (Entity entity, int index, ref MoveTo moveTo) {
+            var position = GeneratePosition (index);
+            moveTo.position = position;
             moveTo.move = true;
         }
+        private float repeat (float t, float length) {
+            return t - math.floor (t / length) * length;
+        }
+        private float3 GeneratePosition (int index) {
+            float angle = GenerateAngle (index);
+            float3 dir = ApplyRotationToVector (new float3 (0, 1, 0), angle);
+            float3 position = mousePosition + dir * GenerateDistance (index);
+            return position;
+        }
+        private float GenerateAngle (int index) {
+            int repeatedIntex = (int) repeat (index + 1, 4);
+            if (repeatedIntex != 0) {
+                return 360 / repeatedIntex;
+            }
+            return 0;
+        }
+        private float GenerateDistance (int index) {
+            return math.ceil ((index) / 4f) * 2f;
+        }
+        private float3 ApplyRotationToVector (float3 vec, float angle) {
+            return math.mul (quaternion.Euler (0, 0, angle), vec);
+        }
     }
-    protected override void OnCreate()
-    {
-        EntityManager.CreateEntity(typeof(SelectionAreaData));
-        endSimulationEntityCommandBuffer = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
-        physicsWorldSystem = World.GetExistingSystem<BuildPhysicsWorld>();
+    protected override void OnCreate () {
+        EntityManager.CreateEntity (typeof (SelectionAreaData));
+        endSimulationEntityCommandBuffer = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem> ();
+        physicsWorldSystem = World.GetExistingSystem<BuildPhysicsWorld> ();
     }
-    protected override JobHandle OnUpdate(JobHandle inputDependencies)
-    {
-        var handleSchedule = HandleInput(inputDependencies);
-        if (selection && SelectionEnded())
-        {
-            var job = new SelectionJob()
-            {
+    protected override JobHandle OnUpdate (JobHandle inputDependencies) {
+        var handleSchedule = HandleInput (inputDependencies);
+        if (selection && SelectionEnded ()) {
+            var job = new SelectionJob () {
                 physicsWorld = physicsWorldSystem.PhysicsWorld,
                 collisionWorld = physicsWorldSystem.PhysicsWorld.CollisionWorld,
-                entityCommandBuffer = endSimulationEntityCommandBuffer.CreateCommandBuffer().ToConcurrent(),
+                entityCommandBuffer = endSimulationEntityCommandBuffer.CreateCommandBuffer ().ToConcurrent (),
                 lowerLeftPosition = lowerLeftPosition,
                 upperRightPosition = upperRightPosition,
                 startPosition = startPosition,
                 endPosition = endPosition,
                 selectionAreaSize = selectionAreaSize
             };
-            var schedule = job.Schedule(1, handleSchedule);
-            schedule.Complete();
-            endSimulationEntityCommandBuffer.AddJobHandleForProducer(schedule);
+            var schedule = job.Schedule (1, handleSchedule);
+            schedule.Complete ();
+            endSimulationEntityCommandBuffer.AddJobHandleForProducer (schedule);
             return schedule;
         }
         return handleSchedule;
     }
-    private bool SelectionEnded()
-    {
-        return math.any(endPosition != float3.zero);
+    private bool SelectionEnded () {
+        return math.any (endPosition != float3.zero);
     }
-    private void SetSelectionData()
-    {
-        selectionAreaSize = (lowerLeftPosition - upperRightPosition) * math.sign(startPosition - GetWorldMousePoint()) * new float3(1, 1, 0);
-        SetSingleton<SelectionAreaData>(new SelectionAreaData()
-        {
+    private void SetSelectionData () {
+        selectionAreaSize = (lowerLeftPosition - upperRightPosition) * math.sign (startPosition - GetWorldMousePoint ()) * new float3 (1, 1, 0);
+        SetSingleton<SelectionAreaData> (new SelectionAreaData () {
             isSelecting = selection,
-            lowerLeftPosition = lowerLeftPosition,
-            upperRightPosition = upperRightPosition,
-            startPosition = startPosition,
-            selectionAreaSize = selectionAreaSize,
-            endPosition = endPosition,
-            currentPosition = currentPosition
+                lowerLeftPosition = lowerLeftPosition,
+                upperRightPosition = upperRightPosition,
+                startPosition = startPosition,
+                selectionAreaSize = selectionAreaSize,
+                endPosition = endPosition,
+                currentPosition = currentPosition
         });
     }
-    private float3 GetWorldMousePoint()
-    {
-        var cameraPos = (float3)Camera.main.ScreenToWorldPoint(Input.mousePosition);
+    private float3 GetWorldMousePoint () {
+        var cameraPos = (float3) Camera.main.ScreenToWorldPoint (Input.mousePosition);
         cameraPos.z = 0;
         return cameraPos;
     }
-    private JobHandle HandleInput(JobHandle inputDependencies)
-    {
-        if (Input.GetMouseButtonDown(0))
-        {
+    private JobHandle HandleInput (JobHandle inputDependencies) {
+        if (Input.GetMouseButtonDown (0)) {
             selection = true;
-            startPosition = GetWorldMousePoint();
+            startPosition = GetWorldMousePoint ();
 
             return inputDependencies;
         }
-        if (Input.GetMouseButtonUp(0))
-        {
-            var deselectJob = new DeselectJob() { entityCommandBuffer = endSimulationEntityCommandBuffer.CreateCommandBuffer().ToConcurrent() };
-            var handle = deselectJob.Schedule(this, inputDependencies);
-            handle.Complete();
-            endSimulationEntityCommandBuffer.AddJobHandleForProducer(handle);
-            endPosition = GetWorldMousePoint();
-            lowerLeftPosition = new float3(math.min(startPosition.x, endPosition.x), math.min(startPosition.y, endPosition.y), 0);
-            upperRightPosition = new float3(math.max(startPosition.x, endPosition.x), math.max(startPosition.y, endPosition.y), 0);
-            SetSelectionData();
+        if (Input.GetMouseButtonUp (0)) {
+            var deselectJob = new DeselectJob () { entityCommandBuffer = endSimulationEntityCommandBuffer.CreateCommandBuffer ().ToConcurrent () };
+            var handle = deselectJob.Schedule (this, inputDependencies);
+            handle.Complete ();
+            endSimulationEntityCommandBuffer.AddJobHandleForProducer (handle);
+            endPosition = GetWorldMousePoint ();
+            lowerLeftPosition = new float3 (math.min (startPosition.x, endPosition.x), math.min (startPosition.y, endPosition.y), 0);
+            upperRightPosition = new float3 (math.max (startPosition.x, endPosition.x), math.max (startPosition.y, endPosition.y), 0);
+            SetSelectionData ();
             return handle;
         }
-        if (Input.GetMouseButton(0))
-        {
-            currentPosition = GetWorldMousePoint();
-            lowerLeftPosition = new float3(math.min(startPosition.x, currentPosition.x), math.min(startPosition.y, currentPosition.y), 0);
-            upperRightPosition = new float3(math.max(startPosition.x, currentPosition.x), math.max(startPosition.y, currentPosition.y), 0);
-            SetSelectionData();
+        if (Input.GetMouseButton (0)) {
+            currentPosition = GetWorldMousePoint ();
+            lowerLeftPosition = new float3 (math.min (startPosition.x, currentPosition.x), math.min (startPosition.y, currentPosition.y), 0);
+            upperRightPosition = new float3 (math.max (startPosition.x, currentPosition.x), math.max (startPosition.y, currentPosition.y), 0);
+            SetSelectionData ();
             return inputDependencies;
-        }
-        else if (selection)
-        {
-            Reset();
-            SetSelectionData();
+        } else if (selection) {
+            Reset ();
+            SetSelectionData ();
             return inputDependencies;
         }
 
         //Handle right mouse button
-        if (Input.GetMouseButtonDown(1))
-        {
-            var orderUnitJob = new OrderSelectedUnitJob() { mousePosition = GetWorldMousePoint() };
-            var handle = orderUnitJob.Schedule(this, inputDependencies);
-            handle.Complete();
+        if (Input.GetMouseButtonDown (1)) {
+            EntityQuery query = GetEntityQuery (
+                ComponentType.ReadOnly<MoveTo> (),
+                ComponentType.ReadOnly<SelectedTag> ()
+            );
+            var entityCount = query.CalculateEntityCount ();
+            var orderUnitJob = new OrderSelectedUnitJob () { mousePosition = GetWorldMousePoint (), positionCount = entityCount };
+            var handle = orderUnitJob.Schedule (this, inputDependencies);
+            /*    mouvePositionList.Dispose (); */
+            handle.Complete ();
+
             return handle;
         }
         return inputDependencies;
     }
 
-    private void Reset()
-    {
+    private void Reset () {
         selection = false;
         endPosition = float3.zero;
         startPosition = float3.zero;
@@ -248,52 +249,45 @@ public class UnitControlSystem : JobComponentSystem
     }
 }
 
-public struct HasSelectionCircle : IComponentData
-{
+public struct HasSelectionCircle : IComponentData {
     public Entity circle;
 }
-public class UnitSelectRenderer : JobComponentSystem
-{
+public class UnitSelectRenderer : JobComponentSystem {
 
     public Entity circleEntity;
     public float3 offset;
     private EndSimulationEntityCommandBufferSystem endSimulationEntityCommandBuffer;
 
     [BurstCompile]
-    [RequireComponentTag(typeof(SelectedTag))]
-    [ExcludeComponent(typeof(HasSelectionCircle))]
-    struct UnitSelecRendererJob : IJobForEachWithEntity<Translation>
-    {
+    [RequireComponentTag (typeof (SelectedTag))]
+    [ExcludeComponent (typeof (HasSelectionCircle))]
+    struct UnitSelecRendererJob : IJobForEachWithEntity<Translation> {
 
         public EntityCommandBuffer.Concurrent entityCommandBuffer;
         public Entity circleEntity;
         public float3 offset;
-        public void Execute(Entity entity, int index, [ReadOnly] ref Translation translation)
-        {
-            var instance = entityCommandBuffer.Instantiate(index, circleEntity);
-            entityCommandBuffer.AddComponent(index, instance, new Parent() { Value = entity });
-            entityCommandBuffer.AddComponent(index, instance, new LocalToParent() { Value = float4x4.identity });
-            entityCommandBuffer.AddComponent(index, instance, new LocalToWorld());
-            entityCommandBuffer.AddComponent(index, entity, new HasSelectionCircle() { circle = instance });
+        public void Execute (Entity entity, int index, [ReadOnly] ref Translation translation) {
+            var instance = entityCommandBuffer.Instantiate (index, circleEntity);
+            entityCommandBuffer.AddComponent (index, instance, new Parent () { Value = entity });
+            entityCommandBuffer.AddComponent (index, instance, new LocalToParent () { Value = float4x4.identity });
+            entityCommandBuffer.AddComponent (index, instance, new LocalToWorld ());
+            entityCommandBuffer.AddComponent (index, entity, new HasSelectionCircle () { circle = instance });
         }
     }
 
-    protected override void OnCreate()
-    {
-        endSimulationEntityCommandBuffer = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem>();
-        base.OnCreate();
+    protected override void OnCreate () {
+        endSimulationEntityCommandBuffer = World.GetOrCreateSystem<EndSimulationEntityCommandBufferSystem> ();
+        base.OnCreate ();
     }
-    protected override JobHandle OnUpdate(JobHandle inputDependencies)
-    {
-        var offset = EntityManager.GetComponentData<Translation>(circleEntity);
-        var job = new UnitSelecRendererJob()
-        {
-            entityCommandBuffer = endSimulationEntityCommandBuffer.CreateCommandBuffer().ToConcurrent(),
+    protected override JobHandle OnUpdate (JobHandle inputDependencies) {
+        var offset = EntityManager.GetComponentData<Translation> (circleEntity);
+        var job = new UnitSelecRendererJob () {
+            entityCommandBuffer = endSimulationEntityCommandBuffer.CreateCommandBuffer ().ToConcurrent (),
             circleEntity = circleEntity,
             offset = offset.Value,
         };
-        var schedule = job.Schedule(this, inputDependencies);
-        endSimulationEntityCommandBuffer.AddJobHandleForProducer(schedule);
+        var schedule = job.Schedule (this, inputDependencies);
+        endSimulationEntityCommandBuffer.AddJobHandleForProducer (schedule);
         return schedule;
     }
 }
